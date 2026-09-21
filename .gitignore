@@ -1,3 +1,43 @@
-﻿*.exe
+# Build artifacts
+*.exe
 *.o
 *.obj
+*.dll
+*.so
+*.dylib
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Archivos de prueba / sueltos (NO son el motor)
+ch1.c
+chess_raylib.c
+pest.c
+tabl.c
+prbsss.c
+operador%.py
+
+# Asset pack original (pesado, no necesario)
+fichas/JohnPablok*
+fichas/*.zip
+fichas/*/board*
+fichas/*/chess*
+fichas/*/example*
+fichas/*/SVG*
+fichas/*/With*
+fichas/*/128h/
+fichas/*/256h/
+fichas/*/512h/
+fichas/*/1024h/
+fichas/*/1x/
+fichas/*/2x/
