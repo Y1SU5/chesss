@@ -48,13 +48,13 @@ typedef struct {
 //validar  
     int vltr(char pos[]);
 //manda cual es la funcion que se usara
-    int es_movimiento_valido(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c);
+    int es_movimiento_valido(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c, int paso_f, int paso_c);
 //dibujar casilla
-    void dibujar_posibles_movimientos(pieza tab[8][8], int org_f, int org_c);
+    void dibujar_posibles_movimientos(pieza tab[8][8], int org_f, int org_c, int paso_f, int paso_c);
 //cambio de posicion   
     void chg_pos(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c);
 //validar el moviento de los peones
-    int vltr_peon(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c);
+    int vltr_peon(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c, int paso_f, int paso_c);
 //validar movimiento de las torres
     int vltr_torre(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c);
 //validar el movimiento de los caballos
@@ -70,6 +70,11 @@ typedef struct {
     int casilla_atacada(pieza tab[8][8], int f, int c, int color_atacante);
     int esta_en_jaque(pieza tab[8][8], int color);
     int vltr_enroque(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c);
+//verificar fichas clavadas
+    int movimiento_es_seguro(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c, int color, int paso_f, int paso_c);
+//promocionar peon
+//menu para seleccionar la pieza que se escogue al coronar
+    void dibujar_menu_promocion(int color, TexturasAjedrez tex);
 
 int main(void){
     //inicializar la ventana
@@ -99,13 +104,20 @@ int main(void){
     //mostrar tablero
     prt_tbs(tab);
     
-    //crear variables para recordar la seleccion(antes del while
+    //crear variables para recordar la seleccion(antes del while)
     bool pieza_seleccionada = false;
     int org_f = -1, org_c = -1;
 
     //crear una variable que valide los turnos
     int turno_actual = 0; 
     //blancas = 0, negras = 1
+
+    //crear variable para promocion
+    bool eligiendo_promocion = false;
+    int promo_f = -1, promo_c = -1;
+
+    //variables para validar al captura al paso
+    int paso_f = -1, paso_c = -1;
 
     //crear el bucle
     //cambiamos el true dentro del while
@@ -115,56 +127,107 @@ int main(void){
         //detectar el click del mouse
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
             Vector2 mouse = GetMousePosition();
-            int f = (int)(mouse.y / TAM_CASILLA);
-            int c = (int)(mouse.x / TAM_CASILLA);
-            
-            if (!pieza_seleccionada){
-                //primer click(si la casilla no esta vacia)
-                if (tab[f][c].sbl != '_' && tab[f][c].color == turno_actual){
-                    org_f = f;
-                    org_c = c;
-                    pieza_seleccionada = true;
+            //validamos si el peon puede coronar
+            if(eligiendo_promocion){
+                int inicio_x = 160;
+                int inicio_y = 280;
+                if(mouse.y >= inicio_y && mouse.y < inicio_y + TAM_CASILLA && mouse.x >= inicio_x && mouse.x < inicio_x + (4*TAM_CASILLA)){
+                    //averiguamos cual de los 4 botones toco
+                    int opcion = (int)((mouse.x - inicio_x)/TAM_CASILLA);
+                    //asignamos la nueva ficha en promo
+                    if(turno_actual == 0){
+                        if(opcion == 0) tab[promo_f][promo_c].sbl = 'q';
+                        if(opcion == 1) tab[promo_f][promo_c].sbl = 't';
+                        if(opcion == 2) tab[promo_f][promo_c].sbl = 'a';
+                        if(opcion == 3) tab[promo_f][promo_c].sbl = 'c';
+                    }
+                    else{
+                        if(opcion == 0) tab[promo_f][promo_c].sbl = 'Q';
+                        if(opcion == 1) tab[promo_f][promo_c].sbl = 'T';
+                        if(opcion == 2) tab[promo_f][promo_c].sbl = 'A';
+                        if(opcion == 3) tab[promo_f][promo_c].sbl = 'C';
+                    }
+                    //reinciamos las variables
+                    eligiendo_promocion = false;
+                    promo_f = -1;
+                    promo_c = -1;
+                    turno_actual = (turno_actual == 0) ? 1 : 0;
                 }
             }
-            else {
-                //segundo click, el origen es f y c
-                int chg_f = f;
-                int chg_c = c;
+            else{
+                int f = (int)(mouse.y / TAM_CASILLA);
+                int c = (int)(mouse.x / TAM_CASILLA);
                 
-                //caso 1: hizo click en otra de sus piezas (cambiar seleccion
-                if (tab[chg_f][chg_c].sbl != '_' && tab[chg_f][chg_c].color == turno_actual){
-                    org_f = chg_f;
-                    org_c = chg_c;
-                    //mantiene presionada pieza seleccionada(true con la nueva ficha)
-                }
-                //si es valido se mueve; si no, simplemente no hace nada
-                else {
-                    if ((es_movimiento_valido(tab, org_f, org_c, chg_f, chg_c))){
-                        //verificar enroque
-                        char s = tab[org_f][org_c].sbl;
-                        if((s =='k'|| s == 'K') && abs(chg_c - org_c) == 2){
-                            //mover al rey
-                            chg_pos(tab, org_f, org_c, chg_f, chg_c);
-                            //mover torre 
-                            if (chg_c == 6){
-                                //enroque corto
-                                chg_pos(tab, org_f, 7, org_f, 5);
-                            } else if (chg_c == 2){
-                                //enroque largo
-                                chg_pos(tab, org_f, 0, org_f, 3);
-                            }
-                        } else {
-                            //movimiento normal de cualquier otra ficha
-                            chg_pos(tab, org_f, org_c, chg_f, chg_c);
-                        }
-                        //cambiar de turno
-                        turno_actual = (turno_actual == 0) ? 1 : 0;
+                if (!pieza_seleccionada){
+                    //primer click(si la casilla no esta vacia)
+                    if (tab[f][c].sbl != '_' && tab[f][c].color == turno_actual){
+                        org_f = f;
+                        org_c = c;
+                        pieza_seleccionada = true;
                     }
-                    //solo aqui se deselecciona
-                    pieza_seleccionada = false;
                 }
+                else {
+                    //segundo click, el origen es f y c
+                    int chg_f = f;
+                    int chg_c = c;
+                    
+                    //caso 1: hizo click en otra de sus piezas (cambiar seleccion
+                    if (tab[chg_f][chg_c].sbl != '_' && tab[chg_f][chg_c].color == turno_actual){
+                        org_f = chg_f;
+                        org_c = chg_c;
+                        //mantiene presionada pieza seleccionada(true con la nueva ficha)
+                    }
+                    //si es valido se mueve; si no, simplemente no hace nada
+                    else {
+                        if ((es_movimiento_valido(tab, org_f, org_c, chg_f, chg_c, paso_f, paso_c)) && movimiento_es_seguro(tab, org_f, org_c, chg_f, chg_c, turno_actual, paso_f, paso_c)){
+                            char s = tab[org_f][org_c].sbl;
+                            if((s == 'p' || s == 'P') && chg_f == paso_f && chg_c == paso_c){
+                                tab[org_f][chg_c].sbl = '_';
+                                tab[org_f][chg_c].color = -1;
+                                tab[org_f][chg_c].move = 0;
+                            }
+                            //verificar enroque
+                            if((s =='k'|| s == 'K') && abs(chg_c - org_c) == 2){
+                                //mover al rey
+                                chg_pos(tab, org_f, org_c, chg_f, chg_c);
+                                //mover torre 
+                                if (chg_c == 6){
+                                    //enroque corto
+                                    chg_pos(tab, org_f, 7, org_f, 5);
+                                } else if (chg_c == 2){
+                                    //enroque largo
+                                    chg_pos(tab, org_f, 0, org_f, 3);
+                                }
+                            } 
+                            else {
+                                //movimiento normal de cualquier otra ficha
+                                chg_pos(tab, org_f, org_c, chg_f, chg_c);
+                            }
+                            
+                            //actualizar casilla para el siguiente turno
+                            int nuevo_paso_f = -1, nuevo_paso_c = -1;
+                            if((s == 'p' || s == 'P') && abs(chg_f - org_f) == 2){
+                                nuevo_paso_f = (org_f + chg_f) / 2;
+                                nuevo_paso_c = org_c;
+                            }
+                            paso_f = nuevo_paso_f;
+                            paso_c = nuevo_paso_c;
 
-
+                            //llego un peon al extremo opuesto?
+                            char movida = tab[chg_f][chg_c].sbl;
+                            if((movida == 'p' && chg_f == 0) || (movida == 'P' && chg_f == 7)){
+                                eligiendo_promocion = true;
+                                promo_f = chg_f;
+                                promo_c = chg_c;
+                            }
+                            else{
+                                turno_actual = (turno_actual == 0) ? 1 : 0;
+                            }
+                        }
+                        //solo aqui se deselecciona
+                        pieza_seleccionada = false;
+                    }
+                }
             }
         }  
         BeginDrawing();
@@ -181,8 +244,11 @@ int main(void){
                 //resalta casilla de la pieza que se toca
                 DrawRectangle(org_c * TAM_CASILLA, org_f * TAM_CASILLA, TAM_CASILLA, TAM_CASILLA, (Color){255, 255, 0, 100});
                 //dibuja los posibles movimientos 
-                dibujar_posibles_movimientos(tab, org_f, org_c);
+                dibujar_posibles_movimientos(tab, org_f, org_c, paso_f, paso_c);
 
+            }
+            if(eligiendo_promocion){
+                dibujar_menu_promocion(tab[promo_f][promo_c].color, tex);
             }
             dibujar_todas_las_fichas(tab, tex);
         EndDrawing();
@@ -364,7 +430,7 @@ void chg_pos(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c) {
     tab[chg_f][chg_c].fil = chg_f;
     tab[chg_f][chg_c].col = chg_c;
     tab[chg_f][chg_c].move++;
-
+    
     tab[org_f][org_c].sbl = '_';
     tab[org_f][org_c].color = -1;
     tab[org_f][org_c].move = 0;
@@ -372,10 +438,10 @@ void chg_pos(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c) {
 
 
 //movimiento valido
-int es_movimiento_valido(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c) {
+int es_movimiento_valido(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c, int paso_f, int paso_c) {
     char s = tab[org_f][org_c].sbl;
 
-    if (s == 'p' || s == 'P') return vltr_peon(tab, org_f, org_c, chg_f, chg_c) == 0;
+    if (s == 'p' || s == 'P') return vltr_peon(tab, org_f, org_c, chg_f, chg_c, paso_f, paso_c) == 0;
     if (s == 't' || s == 'T') return vltr_torre(tab, org_f, org_c, chg_f, chg_c) == 0;
     if (s == 'c' || s == 'C') return vltr_cbll(tab, org_f, org_c, chg_f, chg_c) == 0;
     if (s == 'a' || s == 'A') return vltr_alfl(tab, org_f, org_c, chg_f, chg_c) == 0;
@@ -387,7 +453,7 @@ int es_movimiento_valido(pieza tab[8][8], int org_f, int org_c, int chg_f, int c
 
 
 //validar movimiento de los peones
-int vltr_peon(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c){
+int vltr_peon(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c, int paso_f, int paso_c){
     int dif_f = chg_f - org_f;
     int dif_c = chg_c - org_c;
     //peones blancos
@@ -395,21 +461,16 @@ int vltr_peon(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c){
         //movimiento recto
         if (dif_c == 0){
             //un paso al frente
-            if (dif_f == -1 && tab[chg_f][chg_c].sbl == '_'){
-                return 0;
-            }
+            if (dif_f == -1 && tab[chg_f][chg_c].sbl == '_') return 0;
             //dos pasos al frente
-            if (dif_f == -2 && tab[org_f][org_c].move == 0 && tab[chg_f][chg_c].sbl=='_' && tab[org_f-1][org_c].sbl=='_'){
-                return 0;
-            }
+            if (dif_f == -2 && tab[org_f][org_c].move == 0 && tab[chg_f][chg_c].sbl=='_' && tab[org_f-1][org_c].sbl=='_') return 0;
+
         }
         //comer en diagonal
-        /*logicamente esto : (dif_c == 1 || dif_f == -1) && dif_f == -1, se reduce a esto:
-        dif_f == -1  */
         if (dif_f == -1 && (dif_c == 1 || dif_c == -1)){
-            if (tab[chg_f][chg_c].sbl != '_' && tab[chg_f][chg_c].color != 0){
-                return 0;
-            }
+            if (tab[chg_f][chg_c].sbl != '_' && tab[chg_f][chg_c].color != 0) return 0;
+            //captura al paso
+            if (chg_f == paso_f && chg_c == paso_c) return 0;
         }
     }
 
@@ -418,21 +479,15 @@ int vltr_peon(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c){
         //movimiento recto
         if (dif_c == 0){
             //un paso al frente
-            if (dif_f == 1 && tab[chg_f][chg_c].sbl == '_'){
-                return 0;
-            }
+            if (dif_f == 1 && tab[chg_f][chg_c].sbl == '_') return 0;
             //dos pasos al frente
-            if (dif_f == 2 && tab[org_f][org_c].move == 0 && tab[chg_f][chg_c].sbl == '_' && tab[org_f+1][org_c].sbl == '_'){
-                return 0;
-            }
+            if (dif_f == 2 && tab[org_f][org_c].move == 0 && tab[chg_f][chg_c].sbl == '_' && tab[org_f+1][org_c].sbl == '_') return 0;
         }
         //comer en diagonal
-        /*logicamente: (dif_f == 1 || dif_c == 1) && dif_f ==-1 se reduce a :
-        dif_f == 1  */
         if (dif_f == 1 && (dif_c == 1 || dif_c == -1)){
-            if (tab[chg_f][chg_c].sbl != '_' && tab[chg_f][chg_c].color != 1){
-                return 0;
-            }
+            if (tab[chg_f][chg_c].sbl != '_' && tab[chg_f][chg_c].color != 1) return 0;
+            //captura al paso
+            if (chg_f == paso_f && chg_c == paso_c) return 0;
         }
     }
     return 1;
@@ -576,17 +631,17 @@ int vltr_reina(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c){
 }
 
 //dibujar posibles movimientos
-void dibujar_posibles_movimientos(pieza tab[8][8], int org_f, int org_c) {
+void dibujar_posibles_movimientos(pieza tab[8][8], int org_f, int org_c,int  paso_f,int  paso_c) {
     Color colPunto = (Color){ 0, 0, 0, 80 };     // Círculo grisáceo/oscuro translúcido
 
     for (int f = 0; f < 8; f++) {
         for (int c = 0; c < 8; c++) {
             // Evaluamos si el movimiento desde (org_f, org_c) hasta (f, c) es legal
-            if (es_movimiento_valido(tab, org_f, org_c, f, c)) {
+            if (es_movimiento_valido(tab, org_f, org_c, f, c, paso_f, paso_c) && movimiento_es_seguro(tab, org_f, org_c, f, c, tab[org_f][org_c].color, paso_f, paso_c)) {
                 int centroX = c * TAM_CASILLA + (TAM_CASILLA / 2);
                 int centroY = f * TAM_CASILLA + (TAM_CASILLA / 2);
 
-                if (tab[f][c].sbl == '_') {
+                if (tab[f][c].sbl == '_' && !(f == paso_f && c == paso_c)) {
                     // Casilla vacía: un puntito en el centro
                     DrawCircle(centroX, centroY, 12, colPunto);
                 } else {
@@ -632,7 +687,7 @@ int casilla_atacada(pieza tab[8][8], int f, int c, int color_atacante){
                         return 1;
                     }
                 }
-                else if (es_movimiento_valido(tab, i, j, f, c)){
+                else if (es_movimiento_valido(tab, i, j, f, c, -1, -1)){
                     return 1;
                 }
             }
@@ -687,4 +742,84 @@ int vltr_enroque(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c){
         return 0;
     }
     return 1;
+}
+
+//verificar alguna ficha clavada
+int movimiento_es_seguro(pieza tab[8][8], int org_f, int org_c, int chg_f, int chg_c, int color, int paso_f, int paso_c){
+    pieza copia[8][8];
+    //creamos tablero de pruebas
+    memcpy(copia, tab,sizeof(copia));
+    //ejecutamos el cambio de posicion para poder ver con claridad que es lo que pasa exactamente
+    chg_pos(copia, org_f, org_c, chg_f, chg_c);
+    char s = copia[chg_f][chg_c].sbl;
+    //verificar captura al paso
+    if((s == 'p' || s == 'P') && chg_f  == paso_f && chg_c == paso_c){
+        copia[org_f][chg_c].sbl = '_';
+        copia[org_f][chg_c].color = -1;
+        copia[org_f][chg_c].move = 0;
+    }
+
+    if(s == 'k' || s == 'K'){
+        //enroque corto
+        if(abs(chg_c - org_c) == 2){
+            if(chg_c == 6){
+                chg_pos(copia, org_f, 7, org_f, 5);
+            }
+            else if(chg_c == 2){
+                chg_pos(copia, org_f, 0, org_f, 3);
+            }
+        }
+    }
+
+    if (esta_en_jaque(copia, color)){
+        return 0;
+    }
+    return 1;
+}
+
+
+void dibujar_menu_promocion(int color, TexturasAjedrez tex) {
+    int ancho_pantalla = 8 * TAM_CASILLA;
+    
+    // 1. Fondo oscuro semitransparente (pausa visual)
+    DrawRectangle(0, 0, ancho_pantalla, ancho_pantalla, (Color){ 0, 0, 0, 160 });
+
+    int ancho_caja = 4 * TAM_CASILLA;
+    int alto_caja = TAM_CASILLA;
+    int inicio_x = (ancho_pantalla - ancho_caja) / 2; // 160
+    int inicio_y = (ancho_pantalla - alto_caja) / 2;  // 280
+
+    // 2. Fondo de la cajita flotante con borde
+    DrawRectangle(inicio_x - 4, inicio_y - 4, ancho_caja + 8, alto_caja + 8, DARKGRAY);
+    DrawRectangle(inicio_x, inicio_y, ancho_caja, alto_caja, LIGHTGRAY);
+
+    // 3. Dibujar las 4 piezas según el turno/color
+    Texture2D opciones[4];
+    if (color == 0) { // Blancas
+        opciones[0] = tex.w_q;
+        opciones[1] = tex.w_t;
+        opciones[2] = tex.w_a;
+        opciones[3] = tex.w_c;
+    } else {          // Negras
+        opciones[0] = tex.b_q;
+        opciones[1] = tex.b_t;
+        opciones[2] = tex.b_a;
+        opciones[3] = tex.b_c;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        int x = inicio_x + (i * TAM_CASILLA);
+        // Pequeño borde para cada casilla de opción
+        DrawRectangleLines(x, inicio_y, TAM_CASILLA, TAM_CASILLA, GRAY);
+
+        // Centramos el dibujo de la ficha en la casilla
+        Rectangle fuente = { 0.0f, 0.0f, (float)opciones[i].width, (float)opciones[i].height };
+        Rectangle destino = {
+            (float)x + MARGEN,
+            (float)inicio_y + MARGEN,
+            (float)TAM_FICHA,
+            (float)TAM_FICHA
+        };
+        DrawTexturePro(opciones[i], fuente, destino, (Vector2){ 0, 0 }, 0.0f, WHITE);
+    }
 }
