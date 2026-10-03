@@ -75,6 +75,10 @@ typedef struct {
 //promocionar peon
 //menu para seleccionar la pieza que se escogue al coronar
     void dibujar_menu_promocion(int color, TexturasAjedrez tex);
+//detectar jaque mate
+    int tiene_movimientos_legales(pieza tab[8][8], int color, int paso_f, int paso_c);
+//detectar si quedan dos reyes o piezas insuficientes para hacer al rey ahogado
+    int es_material_insuficiente(pieza tab[8][8]);
 
 int main(void){
     //inicializar la ventana
@@ -112,6 +116,9 @@ int main(void){
     int turno_actual = 0; 
     //blancas = 0, negras = 1
 
+    // 0 = en juego, 1 = jaque mate, 2 = tablas (ahogado)
+    int estado_juego = 0;
+
     //crear variable para promocion
     bool eligiendo_promocion = false;
     int promo_f = -1, promo_c = -1;
@@ -123,12 +130,28 @@ int main(void){
     //cambiamos el true dentro del while
 
     while(!WindowShouldClose()){
+        //reincia solo si el juego termino
+        if (estado_juego != 0 && IsKeyPressed(KEY_R)) {
+            iniciar_tablero(tab);
+            pieza_seleccionada = false;
+            org_f = -1;
+            org_c = -1;
+            turno_actual = 0;
+            eligiendo_promocion = false;
+            promo_f = -1;
+            promo_c = -1;
+            paso_f = -1;
+            paso_c = -1;
+        }
 
         //detectar el click del mouse
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
             Vector2 mouse = GetMousePosition();
+            if(estado_juego != 0){
+
+            }
             //validamos si el peon puede coronar
-            if(eligiendo_promocion){
+            else if(eligiendo_promocion){
                 int inicio_x = 160;
                 int inicio_y = 280;
                 if(mouse.y >= inicio_y && mouse.y < inicio_y + TAM_CASILLA && mouse.x >= inicio_x && mouse.x < inicio_x + (4*TAM_CASILLA)){
@@ -152,6 +175,17 @@ int main(void){
                     promo_f = -1;
                     promo_c = -1;
                     turno_actual = (turno_actual == 0) ? 1 : 0;
+                    // Evaluamos al jugador que acaba de recibir el turno
+                    if (es_material_insuficiente(tab)) {
+                        estado_juego = 2; // Tablas
+                    }
+                    else if (!tiene_movimientos_legales(tab, turno_actual, paso_f, paso_c)) {
+                        if (esta_en_jaque(tab, turno_actual)) {
+                            estado_juego = 1; // Jaque Mate
+                        } else {
+                            estado_juego = 2; // Rey Ahogado
+                        }
+                    }
                 }
             }
             else{
@@ -220,8 +254,20 @@ int main(void){
                                 promo_f = chg_f;
                                 promo_c = chg_c;
                             }
-                            else{
+                            else {
                                 turno_actual = (turno_actual == 0) ? 1 : 0;
+                                //evaluamos al rival que acaba de recibir el turno
+                                if (es_material_insuficiente(tab)){
+                                    estado_juego = 2;
+                                }
+                                //lugar de evaluacion
+                                else if (!tiene_movimientos_legales(tab, turno_actual, paso_f, paso_c)){
+                                    if (esta_en_jaque(tab, turno_actual)){
+                                        estado_juego = 1; // jaque mate
+                                    } else{
+                                        estado_juego = 2;// ahogado
+                                    }
+                                }
                             }
                         }
                         //solo aqui se deselecciona
@@ -251,6 +297,28 @@ int main(void){
                 dibujar_menu_promocion(tab[promo_f][promo_c].color, tex);
             }
             dibujar_todas_las_fichas(tab, tex);
+
+            //menu del final
+            if(estado_juego != 0){
+                //oscurecemos lo que esta atras
+                DrawRectangle(0,0, 8 * TAM_CASILLA, 8 * TAM_CASILLA, (Color){0, 0, 0, 180});
+                //elegimos el texto que saldra 
+                const char *mensaje = (estado_juego == 1) ? ((turno_actual == 0) ? "Jaque mate! Ganan Negras" : "Jaque mate! Ganan Blancas") : "Tablas! Rey Ahogado";
+                
+                int fontSize = 28;
+                int textWidth = MeasureText(mensaje, fontSize);
+                int posX = (8 * TAM_CASILLA - textWidth) / 2;
+                int posY = (8 * TAM_CASILLA - fontSize) / 2;
+                //cajita flotante con borde dorado
+                DrawRectangle(posX - 20, posY -15, textWidth + 40, fontSize + 50, (Color){30, 30, 30, 240});
+                DrawRectangleLines(posX - 20, posY - 15, textWidth + 40, fontSize + 50, GOLD);
+
+                DrawText(mensaje, posX, posY - 5, fontSize, RAYWHITE);
+            
+                const char *sub = "Presiona 'R' para reiniciar";
+                int subWidth = MeasureText(sub, 16);
+                DrawText(sub, (8 * TAM_CASILLA - subWidth) / 2, posY + 30, 16, LIGHTGRAY);
+            }
         EndDrawing();
 
     }//cierra el while
@@ -822,4 +890,44 @@ void dibujar_menu_promocion(int color, TexturasAjedrez tex) {
         };
         DrawTexturePro(opciones[i], fuente, destino, (Vector2){ 0, 0 }, 0.0f, WHITE);
     }
+}
+
+//validar jaque mate
+int tiene_movimientos_legales(pieza tab[8][8], int color, int paso_f, int paso_c) {
+    //Buscamos en todas las casillas del tablero piezas del jugador
+    for (int org_f = 0; org_f < 8; org_f++) {
+        for (int org_c = 0; org_c < 8; org_c++) { 
+            //Hay una pieza y es del color del jugador actual?
+            if (tab[org_f][org_c].sbl != '_' && tab[org_f][org_c].color == color) {               
+                //Probamos todos los destinos posibles (dst_f, dst_c) para esta pieza
+                for (int dst_f = 0; dst_f < 8; dst_f++) {
+                    for (int dst_c = 0; dst_c < 8; dst_c++) {
+                        //Puede moverse ahí y ese movimiento salva al rey?
+                        if (es_movimiento_valido(tab, org_f, org_c, dst_f, dst_c, paso_f, paso_c) && movimiento_es_seguro(tab, org_f, org_c, dst_f, dst_c, color, paso_f, paso_c)) {
+                            return 1; //Encontró AL MENOS UNA jugada legal
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Si recorrió absolutamente todo y no encontró NINGUNA jugada legal
+    return 0; 
+}
+//validar cuando no hay mas piezas o cuando solo queden unas cuantas o dos reyes xd
+int es_material_insuficiente(pieza tab[8][8]){
+    int total_piezas = 0;
+    for (int f = 0; f < 8; f++){
+        for (int c = 0; c < 8; c++){
+            if (tab[f][c].sbl != '_'){
+                total_piezas++;
+            }
+        }
+    }
+
+    //solo quedan dos reyes en el tablero
+    if (total_piezas == 2){
+        return 1;
+    }
+    return 0;
 }
