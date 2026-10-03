@@ -83,7 +83,7 @@ prbchs1.c
 > *"Empecé esto sin saber bien qué era un puntero. Hoy tengo un motor que juega legal, detecta mate, tiene UI y hasta menú de promoción.  
 > Lo siguiente: C++ + bitboards + carritos con física + simulación de agujero negro.  
 > Si tú también estás aprendiendo: **escribe código, rómpelo, diviértete**."*  
-> — **Yisus** 💛
+> — **Yisus** 
 
 ---
 
